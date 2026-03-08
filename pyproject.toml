@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+sources = ["src"]
+
+[project]
+name = "jsacsma"
+version = "0.2.0"
+description = "SAC-SMA + Snow-17 coupled hydrological model -- symfluence plugin"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [{ name = "SYMFLUENCE Team", email = "dev@symfluence.org" }]
+
+dependencies = [
+    "symfluence>=0.7.0",
+    "jsnow17>=0.1.0",
+    "numpy",
+    "pandas",
+    "xarray",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+jax = ["jax", "jaxlib"]
+dev = ["pytest>=7.0"]
+
+[project.entry-points."symfluence.plugins"]
+sacsma = "jsacsma:register"
