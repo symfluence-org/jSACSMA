@@ -96,7 +96,8 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
 
         # Extract precipitation
         precip = None
-        for var in ['pr', 'precip', 'pptrate', 'prcp', 'precipitation']:
+        for var in ['pr', 'precip', 'pptrate', 'prcp', 'precipitation',
+                    'precipitation_flux', 'precipitation_rate']:
             if var in ds:
                 precip = ds[var].values
                 precip_units = ds[var].attrs.get('units', '')
@@ -113,7 +114,8 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
 
         # Extract temperature
         temp = None
-        for var in ['temp', 'tas', 'airtemp', 'tair', 'temperature', 'tmean']:
+        for var in ['temp', 'tas', 'airtemp', 'tair', 'temperature', 'tmean',
+                    'air_temperature']:
             if var in ds:
                 temp = ds[var].values
                 break

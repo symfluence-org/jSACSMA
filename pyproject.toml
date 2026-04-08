@@ -7,7 +7,7 @@ sources = ["src"]
 
 [project]
 name = "jsacsma"
-version = "0.2.1"
+version = "0.2.2"
 description = "SAC-SMA + Snow-17 coupled hydrological model -- symfluence plugin"
 readme = "README.md"
 license = { file = "LICENSE" }

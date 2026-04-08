@@ -102,11 +102,23 @@ class SacSmaRunner(
             )
             # spatial_mode may be a SpatialMode enum — use its string value for paths
             mode_str = self.spatial_mode.value if hasattr(self.spatial_mode, 'value') else str(self.spatial_mode)
-            possible_paths = [
-                catchment_dir / f"{self.domain_name}_HRUs_{discretization}.shp",
-                catchment_dir / mode_str / self.experiment_id / f"{self.domain_name}_HRUs_{discretization}.shp",
-                catchment_dir / mode_str / f"{self.domain_name}_HRUs_{discretization}.shp",
-            ]
+
+            # Build candidate paths with case variations (GRUs vs GRUS)
+            disc_variants = {discretization, discretization.upper()}
+            possible_paths = []
+            for disc in disc_variants:
+                possible_paths.extend([
+                    catchment_dir / f"{self.domain_name}_HRUs_{disc}.shp",
+                    catchment_dir / mode_str / self.experiment_id / f"{self.domain_name}_HRUs_{disc}.shp",
+                    catchment_dir / mode_str / f"{self.domain_name}_HRUs_{disc}.shp",
+                ])
+            # Also search any existing experiment directory under the mode
+            mode_dir = catchment_dir / mode_str
+            if mode_dir.exists():
+                for disc in disc_variants:
+                    for shp in mode_dir.rglob(f"{self.domain_name}_HRUs_{disc}.shp"):
+                        possible_paths.append(shp)
+
             for path in possible_paths:
                 if path.exists():
                     gdf = gpd.read_file(path)
@@ -220,10 +232,16 @@ class SacSmaRunner(
 
     def _save_lumped_results(self, runoff: np.ndarray, time_index) -> None:
         """Save lumped simulation results."""
-        area_m2 = self._get_catchment_area()
-
-        # mm/day to m³/s
-        streamflow_cms = runoff * area_m2 / (1000.0 * 86400.0)
+        try:
+            area_m2 = self._get_catchment_area()
+            # mm/day to m³/s
+            streamflow_cms = runoff * area_m2 / (1000.0 * 86400.0)
+        except (ValueError, FileNotFoundError):
+            self.logger.warning(
+                "Catchment area not available; saving runoff in mm/day only"
+            )
+            area_m2 = None
+            streamflow_cms = np.full_like(runoff, np.nan)
 
         # Create DataFrame
         results_df = pd.DataFrame({
@@ -247,7 +265,7 @@ class SacSmaRunner(
                 'spatial_mode': 'lumped',
                 'domain': self.domain_name,
                 'experiment_id': self.experiment_id,
-                'catchment_area_m2': area_m2,
+                'catchment_area_m2': area_m2 if area_m2 is not None else 'unknown',
             }
         )
         ds['streamflow'].attrs = {'units': 'm3/s', 'long_name': 'Streamflow'}
