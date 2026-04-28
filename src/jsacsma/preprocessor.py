@@ -150,9 +150,11 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
         })
         forcing_df['time'] = pd.to_datetime(forcing_df['time'])
 
-        # Aggregate to daily if sub-daily (SAC-SMA runs daily timestep)
+        # Aggregate to daily if sub-daily, unless forcing timestep is explicitly hourly
+        force_ts = int(self._get_config_value(
+            lambda: self.config.forcing.time_step_size, default=86400, dict_key='FORCING_TIME_STEP_SIZE'))
         time_diff = forcing_df['time'].diff().median()
-        if time_diff < pd.Timedelta(days=1):
+        if time_diff < pd.Timedelta(days=1) and force_ts >= 86400:
             self.logger.info(
                 f"Aggregating sub-daily forcing ({time_diff}) to daily for SAC-SMA"
             )
