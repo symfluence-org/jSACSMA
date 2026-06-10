@@ -35,7 +35,7 @@ _LAZY_IMPORTS = {
     # Main components
     'SacSmaPreProcessor': ('.preprocessor', 'SacSmaPreProcessor'),
     'SacSmaRunner': ('.runner', 'SacSmaRunner'),
-    'SacSmaPostprocessor': ('.postprocessor', 'SacSmaPostprocessor'),
+    'SacSmaPostProcessor': ('.postprocessor', 'SacSmaPostProcessor'),
     'SacSmaResultExtractor': ('.extractor', 'SacSmaResultExtractor'),
 
     # Parameters
@@ -101,7 +101,7 @@ def register() -> None:
     from .config import SacSmaConfigAdapter
     from .extractor import SacSmaResultExtractor
     from .forcing_adapter import SacSmaForcingAdapter
-    from .postprocessor import SacSmaPostprocessor
+    from .postprocessor import SacSmaPostProcessor
     from .preprocessor import SacSmaPreProcessor
     from .runner import SacSmaRunner
 
@@ -110,7 +110,7 @@ def register() -> None:
         preprocessor=SacSmaPreProcessor,
         runner=SacSmaRunner,
         runner_method='run_sacsma',
-        postprocessor=SacSmaPostprocessor,
+        postprocessor=SacSmaPostProcessor,
         config_adapter=SacSmaConfigAdapter,
         result_extractor=SacSmaResultExtractor,
         forcing_adapter=SacSmaForcingAdapter,
@@ -137,7 +137,7 @@ if TYPE_CHECKING:
         Snow17Parameters,
         split_params,
     )
-    from .postprocessor import SacSmaPostprocessor
+    from .postprocessor import SacSmaPostProcessor
     from .preprocessor import SacSmaPreProcessor
     from .runner import SacSmaRunner
     from .sacsma import (
@@ -152,7 +152,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     'SacSmaConfig', 'SacSmaConfigAdapter',
-    'SacSmaPreProcessor', 'SacSmaRunner', 'SacSmaPostprocessor', 'SacSmaResultExtractor',
+    'SacSmaPreProcessor', 'SacSmaRunner', 'SacSmaPostProcessor', 'SacSmaResultExtractor',
     'PARAM_BOUNDS', 'DEFAULT_PARAMS', 'SACSMA_PARAM_NAMES',
     'Snow17Parameters', 'SacSmaParameters', 'split_params',
     'simulate', 'jit_simulate', 'SacSmaSnow17State',
