@@ -141,10 +141,11 @@ class SacSmaWorker(InMemoryModelWorker):
     def _aggregate_forcing_to_timestep(self) -> None:
         """Resample loaded forcing to ``self.timestep_hours`` in place.
 
-        No-op unless the forcing is finer than the target step. Precip and PET
-        are summed (fluxes over the interval); temperature is averaged. Also
-        rewrites ``self._time_index`` to the aggregated axis so observations
-        align to it.
+        No-op unless the forcing is finer than the target step. All variables
+        are averaged over the interval: the RDRS precip/PET fields are mm/day
+        *rates* (not per-step depths), so the interval mean is the daily value —
+        this matches the model preprocessor's daily aggregation. Also rewrites
+        ``self._time_index`` to the aggregated axis so observations align to it.
         """
         if self._time_index is None or len(self._time_index) < 2 or not self._forcing:
             return
@@ -156,8 +157,7 @@ class SacSmaWorker(InMemoryModelWorker):
 
         freq = 'D' if self.timestep_hours == 24 else f'{self.timestep_hours}h'
         df = pd.DataFrame(self._forcing, index=self._time_index)
-        agg = {c: ('mean' if c == 'temp' else 'sum') for c in df.columns}
-        resampled = df.resample(freq).agg(agg).dropna(how='all')
+        resampled = df.resample(freq).mean().dropna(how='all')
 
         self._forcing = {c: resampled[c].to_numpy() for c in resampled.columns}
         self._time_index = resampled.index
