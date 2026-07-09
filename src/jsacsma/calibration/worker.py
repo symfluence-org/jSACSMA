@@ -204,7 +204,7 @@ class SacSmaWorker(InMemoryModelWorker):
             warmup_days=self.warmup_days,
             latitude=self.latitude,
             si=self.si,
-            use_jax=False,
+            use_jax=self._use_jax,
             snow_module=self.snow_module,
         )
 
