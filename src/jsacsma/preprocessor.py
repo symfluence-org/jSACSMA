@@ -150,11 +150,20 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
         })
         forcing_df['time'] = pd.to_datetime(forcing_df['time'])
 
-        # Aggregate to daily if sub-daily, unless forcing timestep is explicitly hourly
-        force_ts = int(self._get_config_value(
-            lambda: self.config.forcing.time_step_size, default=86400, dict_key='FORCING_TIME_STEP_SIZE'))
+        # Aggregate sub-daily forcing to the model timestep. SAC-SMA runs daily
+        # by default (matching the other JAX models and the daily streamflow
+        # observations); set SACSMA_TIMESTEP_HOURS (or TIMESTEP_HOURS) < 24 to
+        # keep sub-daily forcing. NB: gate on the *model* timestep, not the
+        # forcing's native resolution — RDRS is natively hourly, so keying off
+        # FORCING_TIME_STEP_SIZE left SAC-SMA running hourly unintentionally.
+        ts_hours = int(self._get_config_value(
+            lambda: self.config.model.sacsma.timestep_hours, default=24,
+            dict_key='SACSMA_TIMESTEP_HOURS') or 24)
+        if ts_hours == 24:
+            ts_hours = int(self._get_config_value(
+                lambda: None, default=24, dict_key='TIMESTEP_HOURS') or 24)
         time_diff = forcing_df['time'].diff().median()
-        if time_diff < pd.Timedelta(days=1) and force_ts >= 86400:
+        if time_diff < pd.Timedelta(days=1) and ts_hours >= 24:
             self.logger.info(
                 f"Aggregating sub-daily forcing ({time_diff}) to daily for SAC-SMA"
             )

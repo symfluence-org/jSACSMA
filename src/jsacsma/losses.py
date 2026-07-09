@@ -35,6 +35,24 @@ except ImportError:
 # LOSS FUNCTIONS (DIFFERENTIABLE)
 # =============================================================================
 
+def _mask_nan_jax(sim, obs):
+    """Sanitize timesteps with missing observations for a differentiable loss.
+
+    Streamflow observations routinely have gaps (and daily obs aligned to a
+    sub-daily grid are mostly NaN). Feeding NaN into corrcoef / mean / std makes
+    the whole loss — and every parameter gradient — NaN. Zeroing the masked
+    positions in *both* arrays with ``where`` keeps the forward value correct and
+    the backward pass finite (a NaN in an unused ``where`` branch still poisons
+    the gradient, so both branches must be finite).
+
+    Returns ``(sim_safe, obs_safe, mask, n_valid)`` where masked stats are
+    ``sum(x_safe) / n_valid``.
+    """
+    mask = jnp.isfinite(obs) & jnp.isfinite(sim)
+    n = jnp.maximum(jnp.sum(mask), 1.0)
+    return jnp.where(mask, sim, 0.0), jnp.where(mask, obs, 0.0), mask, n
+
+
 def nse_loss(
     params_dict: Dict[str, float],
     precip: Any,
@@ -85,8 +103,10 @@ def nse_loss(
         sim_eval = flow[warmup_days:]
         obs_eval = obs[warmup_days:]
 
-        ss_res = jnp.sum((sim_eval - obs_eval) ** 2)
-        ss_tot = jnp.sum((obs_eval - jnp.mean(obs_eval)) ** 2)
+        sim_s, obs_s, mask, n = _mask_nan_jax(sim_eval, obs_eval)
+        obs_mean = jnp.sum(obs_s) / n
+        ss_res = jnp.sum(jnp.where(mask, (sim_s - obs_s) ** 2, 0.0))
+        ss_tot = jnp.sum(jnp.where(mask, (obs_s - obs_mean) ** 2, 0.0))
         nse = 1.0 - ss_res / (ss_tot + 1e-10)
         return -nse
     else:
@@ -103,6 +123,8 @@ def nse_loss(
         sim_eval = flow[warmup_days:]
         obs_eval = obs[warmup_days:]
 
+        m = np.isfinite(sim_eval) & np.isfinite(obs_eval)
+        sim_eval, obs_eval = sim_eval[m], obs_eval[m]
         ss_res = np.sum((sim_eval - obs_eval) ** 2)
         ss_tot = np.sum((obs_eval - np.mean(obs_eval)) ** 2)
         nse = 1.0 - ss_res / (ss_tot + 1e-10)
@@ -157,11 +179,21 @@ def kge_loss(
         sim_eval = flow[warmup_days:]
         obs_eval = obs[warmup_days:]
 
-        r = jnp.corrcoef(sim_eval, obs_eval)[0, 1]
-        alpha = jnp.std(sim_eval) / (jnp.std(obs_eval) + 1e-10)
-        beta = jnp.mean(sim_eval) / (jnp.mean(obs_eval) + 1e-10)
+        # NaN-safe KGE: mask missing obs, compute correlation / ratios from the
+        # masked moments. The +1e-12 inside the sqrts guards the sqrt gradient
+        # (1/(2*sqrt(x)) -> inf at x=0).
+        sim_s, obs_s, mask, n = _mask_nan_jax(sim_eval, obs_eval)
+        obs_mean = jnp.sum(obs_s) / n
+        sim_mean = jnp.sum(sim_s) / n
+        d_obs = jnp.where(mask, obs_s - obs_mean, 0.0)
+        d_sim = jnp.where(mask, sim_s - sim_mean, 0.0)
+        std_obs = jnp.sqrt(jnp.sum(d_obs ** 2) / n + 1e-12)
+        std_sim = jnp.sqrt(jnp.sum(d_sim ** 2) / n + 1e-12)
+        r = (jnp.sum(d_obs * d_sim) / n) / (std_obs * std_sim)
+        alpha = std_sim / (std_obs + 1e-10)
+        beta = sim_mean / (obs_mean + 1e-10)
 
-        kge = 1.0 - jnp.sqrt((r - 1) ** 2 + (alpha - 1) ** 2 + (beta - 1) ** 2)
+        kge = 1.0 - jnp.sqrt((r - 1) ** 2 + (alpha - 1) ** 2 + (beta - 1) ** 2 + 1e-12)
         return -kge
     else:
         flow, _ = simulate(
@@ -177,6 +209,8 @@ def kge_loss(
         sim_eval = flow[warmup_days:]
         obs_eval = obs[warmup_days:]
 
+        m = np.isfinite(sim_eval) & np.isfinite(obs_eval)
+        sim_eval, obs_eval = sim_eval[m], obs_eval[m]
         r = np.corrcoef(sim_eval, obs_eval)[0, 1]
         alpha = np.std(sim_eval) / (np.std(obs_eval) + 1e-10)
         beta = np.mean(sim_eval) / (np.mean(obs_eval) + 1e-10)
