@@ -130,7 +130,7 @@ class SacSmaWorker(InMemoryModelWorker):
         from pathlib import Path
 
         domain_name = self._get_config_value(lambda: self.config.domain.name, default='domain', dict_key='DOMAIN_NAME')
-        data_dir = Path(self._get_config_value(lambda: str(self.config.system.data_dir), default='.', dict_key='DATA_DIR'))
+        data_dir = Path(self._get_config_value(lambda: str(self.config.system.data_dir), default='.', dict_key='SYMFLUENCE_DATA_DIR'))
         project_dir = data_dir / f"domain_{domain_name}"
 
         obs_file = (resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' /
