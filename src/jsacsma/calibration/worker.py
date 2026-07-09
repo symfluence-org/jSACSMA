@@ -53,10 +53,18 @@ class SacSmaWorker(InMemoryModelWorker):
         self.latitude = 45.0
         self.si = 100.0
         self.snow_module = 'snow17'
+        # Model timestep (hours). Defaults to daily (24) so SAC-SMA aggregates
+        # sub-daily forcing to a daily step — matching the other JAX models and
+        # keeping the daily streamflow observations aligned to the simulation.
+        # Set SACSMA_TIMESTEP_HOURS (or TIMESTEP_HOURS) < 24 to run sub-daily.
+        self.timestep_hours = 24
         if config:
             self.latitude = float(config.get('SACSMA_LATITUDE', 45.0))
             self.si = float(config.get('SACSMA_SI', 100.0))
             self.snow_module = str(config.get('SACSMA_SNOW_MODULE', 'snow17'))
+            self.timestep_hours = int(
+                config.get('SACSMA_TIMESTEP_HOURS', config.get('TIMESTEP_HOURS', 24))
+            )
 
     def _get_model_name(self) -> str:
         return 'SACSMA'
@@ -110,6 +118,14 @@ class SacSmaWorker(InMemoryModelWorker):
 
                     ds.close()
 
+                    # Aggregate sub-daily forcing to the model timestep (daily by
+                    # default). The forcing file may be hourly (native RDRS
+                    # resolution); running the model at that resolution while the
+                    # streamflow observations are daily leaves the obs 96% NaN
+                    # once reindexed to the hourly grid. Precip/PET are summed
+                    # (fluxes), temperature is averaged.
+                    self._aggregate_forcing_to_timestep()
+
                     if len(self._forcing) >= 3:
                         self.logger.info(
                             f"Loaded SAC-SMA forcing from {nc_file.name}: "
@@ -121,6 +137,34 @@ class SacSmaWorker(InMemoryModelWorker):
 
         self.logger.error(f"No SAC-SMA forcing file found in {forcing_dir}")
         return False
+
+    def _aggregate_forcing_to_timestep(self) -> None:
+        """Resample loaded forcing to ``self.timestep_hours`` in place.
+
+        No-op unless the forcing is finer than the target step. Precip and PET
+        are summed (fluxes over the interval); temperature is averaged. Also
+        rewrites ``self._time_index`` to the aggregated axis so observations
+        align to it.
+        """
+        if self._time_index is None or len(self._time_index) < 2 or not self._forcing:
+            return
+
+        median_dt = pd.Series(self._time_index).diff().median()
+        target = pd.Timedelta(hours=self.timestep_hours)
+        if not (median_dt < target):
+            return  # already at (or coarser than) the target step
+
+        freq = 'D' if self.timestep_hours == 24 else f'{self.timestep_hours}h'
+        df = pd.DataFrame(self._forcing, index=self._time_index)
+        agg = {c: ('mean' if c == 'temp' else 'sum') for c in df.columns}
+        resampled = df.resample(freq).agg(agg).dropna(how='all')
+
+        self._forcing = {c: resampled[c].to_numpy() for c in resampled.columns}
+        self._time_index = resampled.index
+        self.logger.info(
+            f"Aggregated SAC-SMA forcing from {median_dt} to {freq}: "
+            f"{len(self._time_index)} timesteps"
+        )
 
     def _load_observations(self, task=None) -> bool:
         """Load observations."""
@@ -144,15 +188,17 @@ class SacSmaWorker(InMemoryModelWorker):
 
                 obs_cms = obs_df.iloc[:, 0]
 
-                # Resample to daily
+                # Resample to the model timestep (daily by default).
+                freq = 'D' if self.timestep_hours == 24 else f'{self.timestep_hours}h'
                 if len(obs_cms) > 1:
                     time_diff = obs_cms.index[1] - obs_cms.index[0]
-                    if time_diff < pd.Timedelta(days=1):
-                        obs_cms = obs_cms.resample('D').mean().dropna()
+                    if time_diff < pd.Timedelta(hours=self.timestep_hours):
+                        obs_cms = obs_cms.resample(freq).mean().dropna()
 
-                # Convert m³/s to mm/day
+                # Convert m³/s to mm/timestep (seconds per step / catchment area)
                 area_km2 = self.get_catchment_area()
-                conversion_factor = 86400.0 / (area_km2 * 1e6 * 0.001)
+                seconds_per_step = self.timestep_hours * 3600.0
+                conversion_factor = seconds_per_step / (area_km2 * 1e6 * 0.001)
                 obs_mm = obs_cms * conversion_factor
 
                 # Align with forcing time
