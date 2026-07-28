@@ -16,7 +16,7 @@ All loss functions return negative values for minimization
 """
 
 import warnings
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -53,6 +53,40 @@ def _mask_nan_jax(sim, obs):
     return jnp.where(mask, sim, 0.0), jnp.where(mask, obs, 0.0), mask, n
 
 
+def _eval_window(
+    sim: Any,
+    obs: Any,
+    warmup_days: int,
+    cal_slice: Optional[Tuple[int, int]],
+) -> Tuple[Any, Any]:
+    """Restrict simulated and observed series to the scored window.
+
+    Warmup is always dropped from the front. ``cal_slice`` then narrows the
+    remainder to the calibration period, and passing it is what keeps a
+    gradient-based optimizer honest: without it the loss spans everything
+    after warmup, so the optimizer trains on the held-out evaluation period
+    and its reported score covers a different window than the calibration
+    metric reported at final evaluation.
+
+    Args:
+        sim: Simulated series, full length including warmup.
+        obs: Observed series, aligned with ``sim``.
+        warmup_days: Leading timesteps to drop.
+        cal_slice: ``(start, end)`` within the post-warmup arrays, or None
+            to score the whole post-warmup record.
+
+    Returns:
+        Tuple of (sim_window, obs_window).
+    """
+    sim_eval = sim[warmup_days:]
+    obs_eval = obs[warmup_days:]
+    if cal_slice is not None:
+        start, end = cal_slice
+        sim_eval = sim_eval[start:end]
+        obs_eval = obs_eval[start:end]
+    return sim_eval, obs_eval
+
+
 def nse_loss(
     params_dict: Dict[str, float],
     precip: Any,
@@ -65,6 +99,7 @@ def nse_loss(
     latitude: float = 45.0,
     si: float = 100.0,
     snow_module: str = 'snow17',
+    cal_slice: Optional[Tuple[int, int]] = None,
 ) -> Any:
     """Compute negative NSE (Nash-Sutcliffe Efficiency) loss.
 
@@ -83,6 +118,9 @@ def nse_loss(
         latitude: Latitude for Snow-17 melt factor seasonality.
         si: SWE threshold for areal depletion in Snow-17.
         snow_module: 'snow17' for coupled mode, 'none' for standalone.
+        cal_slice: Calibration-period (start, end) within the post-warmup
+            arrays. Pass this whenever a calibration period is configured,
+            or the loss also scores the held-out evaluation period.
 
     Returns:
         Negative NSE (loss to minimize).
@@ -100,8 +138,7 @@ def nse_loss(
             use_jax=True,
             snow_module=snow_module,
         )
-        sim_eval = flow[warmup_days:]
-        obs_eval = obs[warmup_days:]
+        sim_eval, obs_eval = _eval_window(flow, obs, warmup_days, cal_slice)
 
         sim_s, obs_s, mask, n = _mask_nan_jax(sim_eval, obs_eval)
         obs_mean = jnp.sum(obs_s) / n
@@ -120,8 +157,7 @@ def nse_loss(
             use_jax=False,
             snow_module=snow_module,
         )
-        sim_eval = flow[warmup_days:]
-        obs_eval = obs[warmup_days:]
+        sim_eval, obs_eval = _eval_window(flow, obs, warmup_days, cal_slice)
 
         m = np.isfinite(sim_eval) & np.isfinite(obs_eval)
         sim_eval, obs_eval = sim_eval[m], obs_eval[m]
@@ -143,6 +179,7 @@ def kge_loss(
     latitude: float = 45.0,
     si: float = 100.0,
     snow_module: str = 'snow17',
+    cal_slice: Optional[Tuple[int, int]] = None,
 ) -> Any:
     """Compute negative KGE (Kling-Gupta Efficiency) loss.
 
@@ -159,6 +196,9 @@ def kge_loss(
         latitude: Latitude for Snow-17 melt factor seasonality.
         si: SWE threshold for areal depletion in Snow-17.
         snow_module: 'snow17' for coupled mode, 'none' for standalone.
+        cal_slice: Calibration-period (start, end) within the post-warmup
+            arrays. Pass this whenever a calibration period is configured,
+            or the loss also scores the held-out evaluation period.
 
     Returns:
         Negative KGE (loss to minimize).
@@ -176,8 +216,7 @@ def kge_loss(
             use_jax=True,
             snow_module=snow_module,
         )
-        sim_eval = flow[warmup_days:]
-        obs_eval = obs[warmup_days:]
+        sim_eval, obs_eval = _eval_window(flow, obs, warmup_days, cal_slice)
 
         # NaN-safe KGE: mask missing obs, compute correlation / ratios from the
         # masked moments. The +1e-12 inside the sqrts guards the sqrt gradient
@@ -206,8 +245,7 @@ def kge_loss(
             use_jax=False,
             snow_module=snow_module,
         )
-        sim_eval = flow[warmup_days:]
-        obs_eval = obs[warmup_days:]
+        sim_eval, obs_eval = _eval_window(flow, obs, warmup_days, cal_slice)
 
         m = np.isfinite(sim_eval) & np.isfinite(obs_eval)
         sim_eval, obs_eval = sim_eval[m], obs_eval[m]
