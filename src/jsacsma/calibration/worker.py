@@ -31,6 +31,28 @@ if HAS_JAX:
     import jax.numpy as jnp
 
 
+def _ensure_x64() -> None:
+    """Enable JAX float64 for the gradient/loss path.
+
+    The coupled Snow-17 + SAC-SMA scan carries many states over thousands of
+    daily steps, and in float32 the accumulated error shows up directly in the
+    reported objective: on the P3 Bow-at-Banff ensemble, ADAM's reported best
+    differed from the float64 metric recomputed at final evaluation by 5e-3,
+    while every non-gradient algorithm — which scores through the numpy path —
+    agreed to ~2e-6. The optimum itself was fine; the number printed for it was
+    not.
+
+    This must run at gradient-call time, NOT at import: sibling JAX model
+    packages (e.g. jFUSE) globally disable x64 in their __init__, and import
+    order is not guaranteed, so an import-time setting here can be overridden.
+    The flag is global JAX config; enabling it is idempotent and keeps the
+    finite-difference and native-AD paths at the same precision. Mirrors
+    jTOPMODEL, whose residual is ~4e-09.
+    """
+    if HAS_JAX and not jax.config.jax_enable_x64:
+        jax.config.update("jax_enable_x64", True)
+
+
 class SacSmaWorker(InMemoryModelWorker):
     """Worker for SAC-SMA + Snow-17 model calibration.
 
@@ -313,6 +335,7 @@ class SacSmaWorker(InMemoryModelWorker):
                 return None
 
         try:
+            _ensure_x64()
             from jsacsma.losses import kge_loss, nse_loss
 
             assert self._forcing is not None
@@ -391,6 +414,7 @@ class SacSmaWorker(InMemoryModelWorker):
                 return self.penalty_score, None
 
         try:
+            _ensure_x64()
             from jsacsma.losses import kge_loss, nse_loss
 
             assert self._forcing is not None
