@@ -331,6 +331,7 @@ class SacSmaWorker(InMemoryModelWorker):
             si = self.si
             snow_module = self.snow_module
             warmup = self.warmup_days
+            cal_slice = self.get_calibration_slice()
 
             def loss_fn(params_array, param_names):
                 params_dict = dict(zip(param_names, params_array))
@@ -341,6 +342,7 @@ class SacSmaWorker(InMemoryModelWorker):
                         day_of_year=day_of_year,
                         latitude=latitude, si=si,
                         snow_module=snow_module,
+                        cal_slice=cal_slice,
                     )
                 return kge_loss(
                     params_dict, precip, temp, pet, obs,
@@ -348,6 +350,7 @@ class SacSmaWorker(InMemoryModelWorker):
                     day_of_year=day_of_year,
                     latitude=latitude, si=si,
                     snow_module=snow_module,
+                    cal_slice=cal_slice,
                 )
 
             grad_fn = jax.grad(loss_fn)
@@ -406,6 +409,7 @@ class SacSmaWorker(InMemoryModelWorker):
             si = self.si
             snow_module = self.snow_module
             warmup = self.warmup_days
+            cal_slice = self.get_calibration_slice()
 
             def loss_fn(params_array, param_names):
                 params_dict = dict(zip(param_names, params_array))
@@ -416,6 +420,7 @@ class SacSmaWorker(InMemoryModelWorker):
                         day_of_year=day_of_year,
                         latitude=latitude, si=si,
                         snow_module=snow_module,
+                        cal_slice=cal_slice,
                     )
                 return kge_loss(
                     params_dict, precip, temp, pet, obs,
@@ -423,6 +428,7 @@ class SacSmaWorker(InMemoryModelWorker):
                     day_of_year=day_of_year,
                     latitude=latitude, si=si,
                     snow_module=snow_module,
+                    cal_slice=cal_slice,
                 )
 
             value_and_grad_fn = jax.value_and_grad(loss_fn)
