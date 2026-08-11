@@ -119,6 +119,38 @@ def register() -> None:
         parameter_manager=SacSmaParameterManager,
     )
 
+    # Contribute SAC-SMA's calibration bounds to symfluence's catalogue.
+    #
+    # SAC-SMA predates the register_model_bounds seam, so symfluence carried a
+    # get_sacsma_bounds() entry as a compatibility shim -- meaning a change to
+    # SAC-SMA's bounds needed a FRAMEWORK release. Registering here makes this
+    # package the owner: get_model_bounds('SACSMA') resolves what we register,
+    # ahead of the built-in entry, so this works against current symfluence
+    # and lets a later release drop the compat entry entirely.
+    #
+    # Values come from jsacsma.parameters.PARAM_BOUNDS (Snow-17 + SAC-SMA) with
+    # the log transforms from LOG_TRANSFORM_PARAMS, already the single source
+    # for every other bounds consumer in this package, and verified identical
+    # to what the framework served (26 names, zero differences, same log/linear
+    # split) -- so adopting the seam changes no calibration result.
+    from symfluence.core.calibration.parameters import ParameterInfo, register_model_bounds
+
+    from .parameters import LOG_TRANSFORM_PARAMS, PARAM_BOUNDS
+
+    register_model_bounds(
+        "SACSMA",
+        params={
+            name: ParameterInfo(
+                float(lo),
+                float(hi),
+                description=f"SAC-SMA {name}",
+                transform='log' if name in LOG_TRANSFORM_PARAMS else 'linear',
+            )
+            for name, (lo, hi) in PARAM_BOUNDS.items()
+        },
+        names=list(PARAM_BOUNDS),
+    )
+
 
 if TYPE_CHECKING:
     from jsnow17.model import snow17_simulate, snow17_step

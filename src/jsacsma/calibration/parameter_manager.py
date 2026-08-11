@@ -21,7 +21,6 @@ from jsacsma.parameters import (
     SACSMA_PARAM_BOUNDS,
 )
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.core.parameter_bounds_registry import get_sacsma_bounds
 
 
 class SacSmaParameterManager(BaseParameterManager):
@@ -79,7 +78,24 @@ class SacSmaParameterManager(BaseParameterManager):
         return self.sacsma_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        bounds = get_sacsma_bounds()
+        """Return SAC-SMA + Snow-17 parameter bounds, owned by this package.
+
+        Was ``get_sacsma_bounds()`` from symfluence's shared catalogue. SAC-SMA
+        predates the ``register_model_bounds`` seam, so its bounds lived in the
+        framework and could not be changed without a framework release. They
+        now come from ``jsacsma.parameters.PARAM_BOUNDS`` (Snow-17 + SAC-SMA)
+        with the log transforms from ``LOG_TRANSFORM_PARAMS`` -- the values this
+        package already uses everywhere else, verified identical to what the
+        catalogue served (26 names, zero differences, same log/linear split).
+        """
+        bounds = {
+            name: {
+                'min': float(lo),
+                'max': float(hi),
+                'transform': 'log' if name in LOG_TRANSFORM_PARAMS else 'linear',
+            }
+            for name, (lo, hi) in PARAM_BOUNDS.items()
+        }
 
         # Apply config-level overrides (same pattern as FUSE)
         config_bounds = self._get_config_value(
