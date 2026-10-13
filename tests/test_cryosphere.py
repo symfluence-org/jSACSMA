@@ -100,3 +100,52 @@ def test_substep_convergence_and_jax_parity():
         <= 0.2 * 5 * 5 * 0.125 + 1e-8
     )
     assert compiled_simulator(c) is compiled_simulator(c)
+
+
+def test_transient_tiny_snow_does_not_shield_whole_ice_interval():
+    c = CryosphereConfig(
+        1.0,
+        (1.0,),
+        (True,),
+        (45.0,),
+        (0.0,),
+        initial_ice_mm=1000.0,
+        timestep_days=0.125,
+        max_substep_days=0.125,
+    )
+    params = {
+        "PXTEMP": 2.0,
+        "MFMAX": 1.0,
+        "MFMIN": 1.0,
+        "PLWHC": 0.0,
+        "DAYGM": 0.0,
+        "NMF": 0.0,
+        "MBASE": 0.0,
+        "SCF": 1.0,
+    }
+    records, _ = simulate_cryosphere([[0.1]], [[2.9]], [[0.0]], [172.0], params, c)
+    # 0.005 mm snow melts almost immediately; almost the whole 3h interval
+    # remains available to melt exposed ice, rather than being fully shielded.
+    potential = 5.0 * 2.9 * 0.125
+    assert 0.99 * potential < records["ice_melt_mm"][0] < potential
+    assert records["snow_storage_mm"][0] == 0
+    assert 0.99 < records["glacier_bare_time_fraction"][0] < 1
+    finer, _ = simulate_cryosphere(
+        [[0.1]], [[2.9]], [[0.0]], [172.0], params, replace(c, max_substep_days=0.0625)
+    )
+    assert records["ice_melt_mm"][0] == pytest.approx(
+        finer["ice_melt_mm"][0], abs=1e-10
+    )
+    assert np.max(abs(records["balance_residual_mm"])) < 1e-8
+
+
+def test_snow_warming_and_melting_consume_ice_exposure_time():
+    c = CryosphereConfig(1.,(1.,),(True,),(45.,),(0.,),initial_ice_mm=1000.,timestep_days=.125,max_substep_days=.125)
+    params={'MFMAX':1.,'MFMIN':1.,'PLWHC':0.,'DAYGM':0.,'NMF':0.,'MBASE':0.,'SCF':1.}
+    r,_=simulate_cryosphere([[10.],[0.]],[[-5.],[40.]],[[0.],[0.]],[171.,172.],params,c)
+    # Cold snow heat deficit = .00625 * 10 mm * 5 C = .3125 mm.
+    # Warm-step gross melt equivalent = 1 * (3h/6h) * 40 = 20 mm.
+    bare_fraction=1-(10.+.3125)/20.
+    assert r['glacier_bare_time_fraction'][1] == pytest.approx(bare_fraction)
+    assert r['ice_melt_mm'][1] == pytest.approx(5.*40.*.125*bare_fraction)
+    assert r['snow_storage_mm'][1] == 0

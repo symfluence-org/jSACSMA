@@ -9,7 +9,7 @@ recharge is an explicit sink. Riparian ET removes available channel inflow.
 These numerical changes require recalibration of existing parameter sets.
 
 `jsacsma.cryosphere` identifies its extension as
-`SACSMA_CRYOSPHERE_UNIFORM_HRU_V1`, not standard lumped SAC-SMA.
+`SACSMA_CRYOSPHERE_UNIFORM_HRU_V2`, not standard lumped SAC-SMA.
 It uses elevation/land/glacier HRUs, native soil accounting on land, glacier
 soil bypass, finite initial ice in mm water equivalent and an exact linear
 routing reservoir. P and PET are mm per input interval; T is degrees C.
@@ -19,13 +19,21 @@ in `CryosphereConfig`. `simulate_cryosphere` validates host inputs; the cached
 JAX requires 64-bit precision. Never trace unvalidated configurations.
 
 Snow17 effective melt area is kept distinct from geometric snow presence.
-Each HRU is spatially uniform: glacier ice exposure requires a bare HRU at the
-start of a substep with no incoming snow. This binary geometric approximation
-is not a measured fractional glacier-cover model. Ice only melts up to its
-remaining inventory. Meltout substeps conservatively omit the remaining ice
-melt opportunity, bounded by `max_substep_days` (default 3 hours, maximum 6).
-Test convergence and use native subdaily forcing for diurnal effects; splitting
-daily mean temperature cannot reconstruct those effects.
+Each HRU is spatially uniform. V2 uses Snow17's optional gross melt-energy
+and heat-deficit-consumption diagnostics to estimate the fraction of a substep
+spent warming/melting snow. Ice receives only the remaining bare time once the
+snowpack is exhausted, and only up to the finite inventory. This fixes V1's
+blanket suppression under tiny snowfall that melts immediately; that suppression
+did not vanish under timestep subdivision. The new ledger includes mean
+`glacier_bare_time_fraction`, distinct from a spatial snow-cover fraction.
+
+This is constant-rate time allocation within a computational substep, not a
+complete surface-energy solver or optical snow-cover model. It includes the time
+needed to overcome snow heat deficit and never awards a full ice budget after
+melting a substantial pack. Test convergence and use native subdaily forcing;
+repeating daily mean temperature cannot reconstruct diurnal effects. Historical
+V1 outputs must retain their own source/model identity and require recalibration
+before using V2.
 
 No glacier retreat, firn evolution, wind redistribution, frozen ground or full
 Snow17 snow-liquid transmission lag is represented. Geometric land cover is

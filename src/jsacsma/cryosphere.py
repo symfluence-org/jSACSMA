@@ -2,11 +2,12 @@
 """Explicit SAC1/Snow17/finite-ice uniform-HRU research variant.
 
 Geometric glacier cover is a binary snow-presence mask, not Snow17 effective
-melt area. Ice melt occurs only on substeps bare at the start, with no new
-snowfall: snow-to-ice meltout cannot receive a full-step ice degree-day budget.
-The unallocated remainder of a meltout substep is deliberately conservative;
-its maximum timing loss is controlled by max_substep_days. No retreat/firn,
-wind redistribution, or snow-liquid transmission lag is claimed.
+melt area. When snow melts out, a constant-rate substep budget estimates the
+fraction of time spent warming/melting snow; only the remaining time can melt
+finite ice. Tiny transient snowfall therefore cannot shield a whole interval.
+This is a uniform-HRU time-allocation approximation, not a fractional spatial
+snow-cover or full surface energy-balance model. No retreat/firn, redistribution,
+frozen ground or snow-liquid transmission lag is claimed.
 """
 
 import math
@@ -27,7 +28,7 @@ from .parameters import DEFAULT_PARAMS
 from .parameters import params_dict_to_namedtuple as soil_params
 from .sacsma import SacSmaState, _create_default_state, sacsma_step_with_fluxes
 
-MODEL_ID = "SACSMA_CRYOSPHERE_UNIFORM_HRU_V1"
+MODEL_ID = "SACSMA_CRYOSPHERE_UNIFORM_HRU_V2"
 CONTROL_NAMES = (
     "CRYO_SI",
     "ICE_DDF",
@@ -51,6 +52,7 @@ RECORD_NAMES = (
     "total_storage_mm",
     "routing_storage_mm",
     "geometric_land_snow_fraction",
+    "glacier_bare_time_fraction",
 )
 
 
@@ -314,14 +316,28 @@ def _run_core(arrays, doy, full, config, use_jax):
         pr = pr * pcorr
         frac = xp.clip((corrected_t - (sp.PXTEMP - 1)) / 2, 0, 1)
         snowfall = pr * sp.PXADJ * (1 - frac) * sp.SCF
-        bare_at_start = (sn.w_i + sn.w_q <= 0) & (snowfall <= 0)
-        new_sn, rpm = snow17_step(
-            pr, corrected_t, dt, sn, sp, d, lat, si, xp=xp, elevation_m=elevation
+        new_sn, rpm, energy = snow17_step(
+            pr,
+            corrected_t,
+            dt,
+            sn,
+            sp,
+            d,
+            lat,
+            si,
+            xp=xp,
+            elevation_m=elevation,
+            return_energy=True,
         )
+        gross_energy, heat_used = energy
+        covered_time = xp.clip(
+            (sn.w_i + snowfall + heat_used) / xp.maximum(gross_energy, 1e-30), 0, 1
+        )
+        bare_time = xp.where(new_sn.w_i + new_sn.w_q <= 0, 1 - covered_time, 0.0)
         new_sa, flux = soil_step(rpm * land, et * land, sa)
         soil_q = flux[0] + flux[1] + flux[2]
         ice_melt = (
-            xp.minimum(ic, ice_ddf * xp.maximum(corrected_t, 0) * dt * bare_at_start)
+            xp.minimum(ic, ice_ddf * xp.maximum(corrected_t, 0) * dt * bare_time)
             * glacier
         )
         new_ic = ic - ice_melt
@@ -353,6 +369,7 @@ def _run_core(arrays, doy, full, config, use_jax):
                 total,
                 new_r,
                 xp.sum(lw * (pack > 0)) / xp.maximum(lw.sum(), 1e-30),
+                xp.sum(gw * bare_time) / xp.maximum(gw.sum(), 1e-30),
             ]
         )
         return new_state, record
@@ -377,11 +394,19 @@ def _run_core(arrays, doy, full, config, use_jax):
         record = records[-1]
         sums = records.sum(axis=0)
         if use_jax:
-            record = record.at[:5].set(sums[:5]).at[10].set(sums[10])
+            record = (
+                record.at[:5]
+                .set(sums[:5])
+                .at[10]
+                .set(sums[10])
+                .at[14]
+                .set(records[:, 14].mean())
+            )
         else:
             record = record.copy()
             record[:5] = sums[:5]
             record[10] = sums[10]
+            record[14] = records[:, 14].mean()
         return state, record
 
     forcings = tuple(xp.asarray(a) for a in [*arrays, doy])
