@@ -53,3 +53,31 @@ Replay them as uncalibrated starting points, then recalibrate and assess
 sensitivity to geometry, initial ice, substep, precipitation and temperature.
 Inspected later periods are development-validation/transfer results, not
 untouched holdouts. Alternative configurations share one SACSMA family vote.
+
+## Reviewing further process extensions
+
+The native V2 interface above does not implement snow redistribution or soil
+heat. Further research variants need distinct identities and source-complete
+replays. Separate land and glacier temperature corrections; constrain glacier
+forcing with calibration-year AWS observations and reserve unused sites/years
+before reading their values. A mostly summer, single-site correction does not
+validate winter or glacier-wide extrapolation.
+
+Statistical accumulation patches can represent wind scour/drift and geometric
+melt-out. Normalize their snowfall multipliers within each parent area, keep
+rainfall unchanged, and retain separate snow states. Avoid applying an effective
+depletion-area reduction again inside a uniform patch. Profile patch spread and
+resolution; a lognormal prior is not a measured local snow distribution or a
+mechanistic blowing-snow model.
+
+Frozen-soil accounting needs separate total/liquid stores: ice occupies storage
+while original capacities still govern ET and total-state saturation ratios.
+Only liquid is available to fluxes and transfers. Thermal remapping must retain
+pre-redistribution latent enthalpy so freezing incoming water releases heat;
+closing a conductive step after resetting enthalpy does not verify that coupling.
+Use NOAA SAC-HT equation and implementation references, the thawed SAC1 limit,
+water/latent-energy checks, timestep profiles, and independent soil-state data.
+A two-zone solver with assumed material properties does not establish operational
+SAC-HT parity. Retain summer floods as a countercheck when investigating spring
+infiltration, and compare winter/summer glacier balance separately at actual
+survey dates with a qualified stratigraphic observation operator.
