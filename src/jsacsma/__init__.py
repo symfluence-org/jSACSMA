@@ -24,6 +24,8 @@ References:
     Burnash, R.J.C. (1995). The NWS River Forecast System - Catchment Modeling.
 """
 
+__version__ = "0.3.0"
+
 from typing import TYPE_CHECKING
 
 # Lazy import mapping
@@ -47,6 +49,9 @@ _LAZY_IMPORTS = {
     'split_params': ('.parameters', 'split_params'),
 
     # Core model
+    'compiled_simulator': ('.cryosphere', 'compiled_simulator'),
+    'CryosphereConfig': ('.cryosphere', 'CryosphereConfig'),
+    'simulate_cryosphere': ('.cryosphere', 'simulate_cryosphere'),
     'simulate': ('.model', 'simulate'),
     'jit_simulate': ('.model', 'jit_simulate'),
     'SacSmaSnow17State': ('.model', 'SacSmaSnow17State'),
@@ -151,6 +156,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    'CryosphereConfig', 'simulate_cryosphere', 'compiled_simulator',
     'SacSmaConfig', 'SacSmaConfigAdapter',
     'SacSmaPreProcessor', 'SacSmaRunner', 'SacSmaPostProcessor', 'SacSmaResultExtractor',
     'PARAM_BOUNDS', 'DEFAULT_PARAMS', 'SACSMA_PARAM_NAMES',

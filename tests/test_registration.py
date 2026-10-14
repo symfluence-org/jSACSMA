@@ -65,8 +65,8 @@ class TestLazyImports:
 
     def test_import_parameters(self):
         from jsacsma import DEFAULT_PARAMS, PARAM_BOUNDS
-        assert len(PARAM_BOUNDS) == 26
-        assert len(DEFAULT_PARAMS) == 26
+        assert len(PARAM_BOUNDS) == 27
+        assert len(DEFAULT_PARAMS) == 27
 
     def test_import_sacsma_state(self):
         from jsacsma import SacSmaState

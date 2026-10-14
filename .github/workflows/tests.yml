@@ -27,6 +27,9 @@ jobs:
           python -m pip install --upgrade pip
           # symfluence (needed by the calibration worker + plugin-registration
           # tests) is declared in the dev extra; the pure-JAX model does not need it.
+          # Cross-repository correction dependency, pinned for draft review.
+          # Remove this bootstrap once jSnow17 0.3.0 is released on PyPI.
+          pip install "jsnow17 @ git+https://github.com/symfluence-org/jSnow17.git@c156e9b1645af2f5ed4ae5e7f1fddcd71bdeace4"
           pip install -e ".[jax,dev]"
       - name: Run tests
         run: pytest -q

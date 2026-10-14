@@ -4,7 +4,7 @@
 """
 SAC-SMA + Snow-17 Parameter Definitions.
 
-Defines all 26 parameters (10 Snow-17 + 16 SAC-SMA) with bounds, defaults,
+Defines all 27 parameters (11 Snow-17 + 16 SAC-SMA) with bounds, defaults,
 and NamedTuple structures for the coupled model.
 
 Snow-17 definitions are imported from the standalone ``jsnow17`` package.
@@ -62,7 +62,7 @@ SACSMA_PARAM_BOUNDS: Dict[str, Tuple[float, float]] = {
     'PCTIM': (0.0, 0.1),      # Permanent impervious area fraction (-)
     'ADIMP': (0.0, 0.4),      # Additional impervious area fraction (-)
     'RIVA': (0.0, 0.2),       # Riparian vegetation ET fraction (-)
-    'SIDE': (0.0, 0.5),       # Deep recharge fraction (-)
+    'SIDE': (0.0, 0.5),       # Non-channel/channel baseflow ratio (-)
     'RSERV': (0.0, 0.4),      # Lower zone free water reserve fraction (-)
 }
 
@@ -105,7 +105,7 @@ class SacSmaParameters(NamedTuple):
     PCTIM: Any   # Permanent impervious area fraction (-)
     ADIMP: Any   # Additional impervious area fraction (-)
     RIVA: Any    # Riparian vegetation ET fraction (-)
-    SIDE: Any    # Deep recharge fraction (-)
+    SIDE: Any    # Non-channel/channel baseflow ratio (-)
     RSERV: Any   # Lower zone free water reserve fraction (-)
 
 

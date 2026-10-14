@@ -10,3 +10,6 @@ build/
 
 # Claude Code instructions
 CLAUDE.md
+
+# Fortran reference fixture build products
+*.mod
