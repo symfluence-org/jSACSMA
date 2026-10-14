@@ -250,7 +250,28 @@ def compiled_simulator(config):
     )
 
 
-def _run_core(arrays, doy, full, config, use_jax):
+@lru_cache(maxsize=16)
+def compiled_snow_observer(config):
+    """Return records, final state and interval-end per-HRU snow water storage.
+
+    The additional history supports external geometric observation operators;
+    it does not change snow physics or reinterpret effective melt area.
+    """
+    import jax
+
+    return jax.jit(
+        lambda vector, p, t, e, d: _run_core(
+            (p, t, e),
+            d,
+            dict(zip(PARAMETER_NAMES, vector)),
+            config,
+            True,
+            collect_snow=True,
+        )
+    )
+
+
+def _run_core(arrays, doy, full, config, use_jax, collect_snow=False):
     shape = arrays[0].shape
     if use_jax:
         import jax
@@ -407,6 +428,8 @@ def _run_core(arrays, doy, full, config, use_jax):
             record[:5] = sums[:5]
             record[10] = sums[10]
             record[14] = records[:, 14].mean()
+        if collect_snow:
+            return state, (record, state[0].w_i + state[0].w_q)
         return state, record
 
     forcings = tuple(xp.asarray(a) for a in [*arrays, doy])
@@ -417,5 +440,11 @@ def _run_core(arrays, doy, full, config, use_jax):
         for i in range(shape[0]):
             state, record = outer(state, tuple(a[i] for a in forcings))
             output.append(record)
-        records = np.array(output)
+        if collect_snow:
+            records = tuple(np.array([entry[k] for entry in output]) for k in range(2))
+        else:
+            records = np.array(output)
+    if collect_snow:
+        records, snow_history = records
+        return records, state, snow_history
     return records, state

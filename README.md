@@ -108,6 +108,23 @@ a version-specific DOI is minted via Zenodo for each GitHub release.
 - Burnash, R. J. C. (1995). The NWS River Forecast System — catchment modeling. In V. P. Singh (Ed.), Computer Models of Watershed Hydrology (pp. 311–366). Water Resources Publications.
 - Anderson, E. A. (2006). Snow Accumulation and Ablation Model — SNOW-17. NOAA Technical Report NWS HYDRO-17.
 
+## Geometric snow-area observations
+
+`compiled_snow_observer(config)` returns the ordinary balance records and final
+state plus an interval-end, per-HRU snow-water history. It preserves the physics
+and discharge of `compiled_simulator`. `jsacsma.observations.snow_covered_area`
+aggregates that history using explicit area weights, a surface-domain mask and
+a detection threshold. For snow cover outside glaciers, exclude glacier HRUs
+and renormalize land weights. Snow17's effective melt area is not optical cover.
+
+Resolve elevation/surface heterogeneity in the HRU geometry, align state times
+with the observation product and profile the detection threshold. The operator
+does not perform a spectral inversion or infer canopy/cloud effects. Gap-filled
+MODIS products need temporal-support and quality qualifications; repeated daily
+values are not independent clear-sky measurements. Independent snow observations
+should be evaluated after parameter selection, with no blind-validation claim
+when those observations have previously informed development.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).

@@ -6,8 +6,40 @@ import pytest
 from jsacsma.cryosphere import (
     CryosphereConfig,
     compiled_simulator,
+    compiled_snow_observer,
     simulate_cryosphere,
 )
+
+
+def test_observer_history_preserves_flow_and_matches_pack_accounting():
+    import jax
+    import jax.numpy as jnp
+    from jsacsma.cryosphere import PARAMETER_NAMES
+    from jsacsma.parameters import DEFAULT_PARAMS
+
+    jax.config.update("jax_enable_x64", True)
+    c = config(timestep_days=0.125)
+    values = dict(
+        DEFAULT_PARAMS,
+        CRYO_SI=600.0,
+        ICE_DDF=5.0,
+        ROUTING_TAU_DAYS=1.0,
+        PRECIP_SCALE=1.0,
+        TEMP_OFFSET_C=0.0,
+    )
+    vector = jnp.asarray([values[k] for k in PARAMETER_NAMES])
+    p = jnp.full((16, 2), 2.0)
+    t = jnp.concatenate([jnp.full((8, 2), -5.0), jnp.full((8, 2), 10.0)])
+    args = (vector, p, t, jnp.zeros_like(p), jnp.full(16, 100.0))
+    records, state = compiled_simulator(c)(*args)
+    observed, final, packs = compiled_snow_observer(c)(*args)
+    np.testing.assert_array_equal(records, observed)
+    np.testing.assert_allclose(np.asarray(packs) @ np.asarray(c.weights), records[:, 5])
+    np.testing.assert_array_equal(packs[-1], final[0].w_i + final[0].w_q)
+    for left, right in zip(
+        jax.tree_util.tree_leaves(state), jax.tree_util.tree_leaves(final)
+    ):
+        np.testing.assert_array_equal(left, right)
 
 
 def config(**kw):
@@ -140,12 +172,31 @@ def test_transient_tiny_snow_does_not_shield_whole_ice_interval():
 
 
 def test_snow_warming_and_melting_consume_ice_exposure_time():
-    c = CryosphereConfig(1.,(1.,),(True,),(45.,),(0.,),initial_ice_mm=1000.,timestep_days=.125,max_substep_days=.125)
-    params={'MFMAX':1.,'MFMIN':1.,'PLWHC':0.,'DAYGM':0.,'NMF':0.,'MBASE':0.,'SCF':1.}
-    r,_=simulate_cryosphere([[10.],[0.]],[[-5.],[40.]],[[0.],[0.]],[171.,172.],params,c)
+    c = CryosphereConfig(
+        1.0,
+        (1.0,),
+        (True,),
+        (45.0,),
+        (0.0,),
+        initial_ice_mm=1000.0,
+        timestep_days=0.125,
+        max_substep_days=0.125,
+    )
+    params = {
+        "MFMAX": 1.0,
+        "MFMIN": 1.0,
+        "PLWHC": 0.0,
+        "DAYGM": 0.0,
+        "NMF": 0.0,
+        "MBASE": 0.0,
+        "SCF": 1.0,
+    }
+    r, _ = simulate_cryosphere(
+        [[10.0], [0.0]], [[-5.0], [40.0]], [[0.0], [0.0]], [171.0, 172.0], params, c
+    )
     # Cold snow heat deficit = .00625 * 10 mm * 5 C = .3125 mm.
     # Warm-step gross melt equivalent = 1 * (3h/6h) * 40 = 20 mm.
-    bare_fraction=1-(10.+.3125)/20.
-    assert r['glacier_bare_time_fraction'][1] == pytest.approx(bare_fraction)
-    assert r['ice_melt_mm'][1] == pytest.approx(5.*40.*.125*bare_fraction)
-    assert r['snow_storage_mm'][1] == 0
+    bare_fraction = 1 - (10.0 + 0.3125) / 20.0
+    assert r["glacier_bare_time_fraction"][1] == pytest.approx(bare_fraction)
+    assert r["ice_melt_mm"][1] == pytest.approx(5.0 * 40.0 * 0.125 * bare_fraction)
+    assert r["snow_storage_mm"][1] == 0
