@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
+from .._symfluence_compat import BaseModelOptimizer
 
 from .worker import SacSmaWorker  # noqa: F401 - Import to ensure worker is available
 
