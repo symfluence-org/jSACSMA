@@ -20,8 +20,7 @@ from jsacsma.parameters import (
     SACSMA_DEFAULTS,
     SACSMA_PARAM_BOUNDS,
 )
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.core.parameter_bounds_registry import get_sacsma_bounds
+from .._symfluence_compat import BaseParameterManager, get_sacsma_bounds
 
 
 class SacSmaParameterManager(BaseParameterManager):

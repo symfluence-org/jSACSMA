@@ -16,9 +16,12 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitDetectionThresholds
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
-from symfluence.models.base import BaseModelPreProcessor
-from symfluence.models.mixins import SpatialModeDetectionMixin
+
+from ._symfluence_compat import (
+    BaseModelPreProcessor,
+    SpatialModeDetectionMixin,
+    create_netcdf_encoding,
+)
 
 
 class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type: ignore[misc]
@@ -70,7 +73,7 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
         """Prepare forcing data for lumped SAC-SMA simulation."""
         self.logger.info("Preparing lumped forcing data for SAC-SMA")
 
-        from symfluence.models.utilities import ForcingDataProcessor
+        from ._symfluence_compat import ForcingDataProcessor
 
         # Load basin-averaged forcing
         fdp = ForcingDataProcessor(self.config, self.logger)
@@ -237,7 +240,7 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
 
     def _calculate_hamon_pet(self, temp: np.ndarray, time: pd.DatetimeIndex) -> np.ndarray:
         """Calculate PET using Hamon method."""
-        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+        from ._symfluence_compat import PETCalculatorMixin
 
         self.logger.info("Calculating PET using Hamon method")
         lat = self.latitude

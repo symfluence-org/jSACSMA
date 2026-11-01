@@ -11,7 +11,7 @@ from typing import Callable, Dict, List
 
 import xarray as xr
 
-from symfluence.models.adapters import ForcingAdapter
+from ._symfluence_compat import ForcingAdapter
 
 
 class SacSmaForcingAdapter(ForcingAdapter):

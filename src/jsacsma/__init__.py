@@ -93,31 +93,29 @@ def __dir__():
 
 
 def register() -> None:
-    """Register SAC-SMA components with symfluence plugin registry."""
-    from symfluence.core.registry import model_manifest
-    from .calibration.optimizer import SacSmaModelOptimizer
-    from .calibration.parameter_manager import SacSmaParameterManager
-    from .calibration.worker import SacSmaWorker
-    from .config import SacSmaConfigAdapter
-    from .extractor import SacSmaResultExtractor
-    from .forcing_adapter import SacSmaForcingAdapter
-    from .postprocessor import SacSmaPostProcessor
-    from .preprocessor import SacSmaPreProcessor
-    from .runner import SacSmaRunner
+    """Register SAC-SMA components with symfluence plugin registry.
 
-    model_manifest(
-        "SACSMA",
-        preprocessor=SacSmaPreProcessor,
-        runner=SacSmaRunner,
-        runner_method='run_sacsma',
-        postprocessor=SacSmaPostProcessor,
-        config_adapter=SacSmaConfigAdapter,
-        result_extractor=SacSmaResultExtractor,
-        forcing_adapter=SacSmaForcingAdapter,
-        optimizer=SacSmaModelOptimizer,
-        worker=SacSmaWorker,
-        parameter_manager=SacSmaParameterManager,
-    )
+    Only the config adapter is imported here: it is light, and model_manifest
+    derives the config schema from it. Every other component is registered by
+    dotted path and imported on first lookup, so plugin discovery during
+    ``import symfluence`` does not load the calibration stack or JAX.
+    """
+    from symfluence.core.registries import R
+    from symfluence.core.registry import model_manifest
+
+    from .config import SacSmaConfigAdapter
+
+    model_manifest("SACSMA", config_adapter=SacSmaConfigAdapter)
+
+    pkg = __name__
+    R.preprocessors.add_lazy("SACSMA", f"{pkg}.preprocessor.SacSmaPreProcessor")
+    R.runners.add_lazy("SACSMA", f"{pkg}.runner.SacSmaRunner", runner_method='run_sacsma')
+    R.postprocessors.add_lazy("SACSMA", f"{pkg}.postprocessor.SacSmaPostProcessor")
+    R.result_extractors.add_lazy("SACSMA", f"{pkg}.extractor.SacSmaResultExtractor")
+    R.forcing_adapters.add_lazy("SACSMA", f"{pkg}.forcing_adapter.SacSmaForcingAdapter")
+    R.optimizers.add_lazy("SACSMA", f"{pkg}.calibration.optimizer.SacSmaModelOptimizer")
+    R.workers.add_lazy("SACSMA", f"{pkg}.calibration.worker.SacSmaWorker")
+    R.parameter_managers.add_lazy("SACSMA", f"{pkg}.calibration.parameter_manager.SacSmaParameterManager")
 
 
 if TYPE_CHECKING:
